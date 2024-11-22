@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styleGamificacion.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="gamification-container">
+    {% if not selected_month %}
+    <div class="month-selector">
+        <h2>Selecciona el mes para revisar las metas:</h2>
+        <form method="POST" action="{{ url_for('gamificacion') }}">
+            <label for="selected_month">Mes:</label>
+            <select id="selected_month" name="selected_month" required>
+                {% for month in months %}
+                <option value="{{ month }}">{{ month }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn-continuar">Continuar</button>
+        </form>
+    </div>
+    {% else %}
+    <div class="metas-container">
+        <h1>Metas y Logros para {{ selected_month }}</h1>
+        {% for meta in metas %}
+        <div class="meta">
+            <h2>{{ meta.descripcion }}</h2>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress-bar-{{ loop.index }}" data-progreso="{{ meta.progreso }}"></div>
+            </div>
+            <p>Progreso: <span id="progress-percentage-{{ loop.index }}">{{ meta.progreso }}</span>%</p>
+            {% if meta.cumplida %}
+            <p class="meta-cumplida">¡Meta cumplida! 🎉</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Iterar sobre cada barra de progreso para actualizar su ancho
+        $('.progress-bar').each(function() {
+            let progreso = $(this).data('progreso');
+            $(this).css('width', progreso + '%');
+        });
+    });
+</script>
+{% endblock %}

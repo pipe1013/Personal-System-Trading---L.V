@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Control System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styleNav.css') }}">
+    {% block styles %}{% endblock %}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Trading Menu</h2>
+        <a href="{{ url_for('inicio') }}">Inicio</a>
+        <a href="{{ url_for('register_trade') }}">Registrar Trade</a>
+        <a href="{{ url_for('estadisticas') }}">Estadísticas</a>
+        <a href="{{ url_for('historial') }}">Historial</a>
+        <a href="{{ url_for('scripts') }}">Scripts</a>
+        <a href="{{ url_for('gestion_riesgo') }}">Gestión Riesgo</a>
+        <a href="{{ url_for('gamificacion') }}">Control de metas</a>
+        <a href="{{ url_for('estrategias') }}">Estrategias</a> <!-- Nuevo módulo -->
+        <a href="{{ url_for('logout') }}">Logout</a>
+    </div>
+    <div class="content">
+        {% block content %}{% endblock %}
+
+        {% if welcome_message %}
+        <script>
+            Swal.fire({
+                icon: 'success',
+                title: '{{ welcome_message }}',
+                text: '¡Bienvenido al sistema de trading!'
+            });
+        </script>
+        {% endif %}
+
+        {% if request.endpoint == 'home' %}
+        <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script> 
+        <dotlottie-player src="https://lottie.host/3fd3acfc-1162-41bf-b3c6-a5e921fc41eb/d1zR6p2os6.json" background="transparent" speed="0.5" style="width: 800px; height: 800px;" loop autoplay></dotlottie-player>
+        {% endif %}
+    </div>
+</body>
+</html>

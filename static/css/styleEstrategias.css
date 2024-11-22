@@ -1,0 +1,58 @@
+.estrategias-container {
+    width: 80%;
+    margin: 20px auto;
+    text-align: center;
+}
+
+.seleccionar-indice, .seleccionar-temporalidad {
+    margin-bottom: 20px;
+    font-size: 1.2em;
+}
+
+.seleccionar-indice select, .seleccionar-temporalidad select {
+    padding: 10px;
+    font-size: 1em;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.seleccionar-indice select:focus, .seleccionar-temporalidad select:focus {
+    border-color: #007bff;
+}
+
+.btn-ejecutar {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.btn-ejecutar:hover {
+    background-color: #0056b3;
+}
+
+.loading-spinner {
+    margin: 20px 0;
+    font-size: 1.2em;
+}
+
+.oportunidades-container {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.oportunidad {
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    text-align: left;
+}

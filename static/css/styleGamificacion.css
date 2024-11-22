@@ -1,0 +1,73 @@
+.gamification-container {
+    width: 90%;
+    margin: 20px auto;
+}
+
+.month-selector {
+    text-align: center;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.month-selector label {
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+.month-selector select {
+    padding: 10px;
+    font-size: 16px;
+}
+
+.btn-continuar {
+    margin-left: 10px;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.btn-continuar:hover {
+    background-color: #0056b3;
+}
+
+/* Estilos del progreso */
+.metas-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.meta {
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 25px;
+    background-color: #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: #0056b3;
+    transition: width 0.5s ease;
+}
+
+.meta-cumplida {
+    color: #0056b3;
+    font-weight: bold;
+}

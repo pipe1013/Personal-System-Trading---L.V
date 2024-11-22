@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styleRisk.css') }}">
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="risk-container" id="riskContainer">
+    <h1>Gestión de Riesgo</h1>
+
+    <!-- Control de Exposición -->
+    <div class="exposure-control">
+        <h2>Control de Exposición</h2>
+        <form id="exposureForm">
+            <label for="capital" class="form-label">Capital Disponible ($):</label>
+            <input type="number" id="capital" class="form-input" required>
+            
+            <label for="riskPercentage" class="form-label">Riesgo por Operación (%):</label>
+            <input type="number" id="riskPercentage" class="form-input" required>
+
+            <label for="stopLossPips" class="form-label">Stop Loss (Pips):</label>
+            <input type="number" id="stopLossPips" class="form-input" required>
+
+            <button type="button" class="btn-ejecutar" onclick="calcularLotaje()">Calcular Lotaje</button>
+        </form>
+
+        <div id="lotajeResultado" style="display: none; margin-top: 20px;">
+            <h3>Resultado del Cálculo:</h3>
+            <p id="lotajeText"></p>
+        </div>
+    </div>
+
+    <!-- Análisis de Drawdown -->
+    <div class="drawdown-analysis">
+        <h2>Análisis de Drawdown</h2>
+        <form id="drawdownForm">
+            <label for="balances" class="form-label">Historial de Balances (separados por comas):</label>
+            <input type="text" id="balances" class="form-input" placeholder="Ejemplo: 1000, 950, 980, 920" required>
+            <button type="button" id="generarDrawdownButton" class="btn-ejecutar" onclick="generarDrawdown()">Generar Drawdown</button>
+        </form>
+        
+        <div id="mensajeCargando" style="display: none; margin-top: 20px;">
+            <h3>Tu gráfico se está generando...</h3>
+        </div>
+        
+        <button type="button" id="verGraficoButton" class="btn-ejecutar" style="display: none; margin-top: 20px;" onclick="verGrafico()">Ver Gráfico</button>
+
+        <!-- Modal del gráfico -->
+        <div id="graficoModal" class="modal">
+                <span class="close" onclick="cerrarModal()">&times;</span>
+                <div id="drawdownChart" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function calcularLotaje() {
+        const capital = parseFloat(document.getElementById('capital').value);
+        const riskPercentage = parseFloat(document.getElementById('riskPercentage').value);
+        const stopLossPips = parseFloat(document.getElementById('stopLossPips').value);
+
+        if (isNaN(capital) || isNaN(riskPercentage) || isNaN(stopLossPips) || capital <= 0 || riskPercentage <= 0 || stopLossPips <= 0) {
+            alert("Por favor, ingresa valores válidos.");
+            return;
+        }
+
+        const riesgoPorOperacion = (capital * riskPercentage) / 100;
+        const valorPip = riesgoPorOperacion / stopLossPips;
+
+        document.getElementById('lotajeResultado').style.display = 'block';
+        document.getElementById('lotajeText').innerText = `Lotaje recomendado: ${valorPip.toFixed(2)} lotes`;
+    }
+
+    function generarDrawdown() {
+        const balancesInput = document.getElementById('balances').value;
+        if (!balancesInput) {
+            alert("Por favor, ingresa el historial de balances.");
+            return;
+        }
+
+        const balances = balancesInput.split(',').map(Number);
+        if (balances.some(isNaN) || balances.length < 2) {
+            alert("Por favor, ingresa un historial de balances válido (al menos dos valores).");
+            return;
+        }
+
+        document.getElementById('mensajeCargando').style.display = 'block';
+        document.getElementById('generarDrawdownButton').style.display = 'none';
+
+        setTimeout(() => {
+            document.getElementById('mensajeCargando').style.display = 'none';
+            document.getElementById('verGraficoButton').style.display = 'block';
+        }, 3000);
+    }
+
+    function verGrafico() {
+        const balancesInput = document.getElementById('balances').value;
+        const balances = balancesInput.split(',').map(Number);
+
+        let maxBalance = balances[0];
+        let drawdowns = [];
+        
+        balances.forEach((balance) => {
+            if (balance > maxBalance) {
+                maxBalance = balance;
+            }
+            const drawdown = ((maxBalance - balance) / maxBalance) * 100;
+            drawdowns.push(drawdown);
+        });
+
+        // Mostrar la ventana modal del gráfico
+        const modal = document.getElementById("graficoModal");
+        modal.style.display = "block";
+
+        // Generar el gráfico
+        const trace1 = {
+            x: balances.map((_, index) => index + 1),
+            y: balances,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Balance',
+            line: { color: 'blue' }
+        };
+        const trace2 = {
+            x: balances.map((_, index) => index + 1),
+            y: drawdowns,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Drawdown (%)',
+            line: { color: 'red' }
+        };
+        const layout = {
+            title: 'Análisis de Drawdown',
+            xaxis: {
+                title: 'Período',
+                tickmode: 'linear',
+                tick0: 1,
+                dtick: 1
+            },
+            yaxis: {
+                title: 'Valor'
+            },
+            width: 1200,  // Ajuste del ancho del gráfico
+            height: 600   // Ajuste de la altura del gráfico para una mejor proporción
+        };
+        Plotly.newPlot('drawdownChart', [trace1, trace2], layout);
+    }
+
+    function cerrarModal() {
+        const modal = document.getElementById("graficoModal");
+        modal.style.display = "none";
+        // Mostrar el botón de "Generar Drawdown" nuevamente cuando se cierra el modal
+        document.getElementById('generarDrawdownButton').style.display = 'block';
+        document.getElementById('verGraficoButton').style.display = 'none';
+    }
+</script>
+{% endblock %}
