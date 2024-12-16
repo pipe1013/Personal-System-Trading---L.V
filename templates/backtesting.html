@@ -1,0 +1,139 @@
+<!-- backtesting.html -->
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/backtesting.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="backtesting-container">
+    <h1>Backtesting de Estrategias de Trading</h1>
+    <div class="seleccionar-indice">
+        <label for="indice">Selecciona el índice para backtesting:</label>
+        <select id="indice" name="indice">
+            {% for key, value in indices_sinteticos.items() %}
+                <option value="{{ key }}">{{ value }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="seleccionar-temporalidad">
+        <label for="temporalidad">Selecciona la temporalidad:</label>
+        <select id="temporalidad" name="temporalidad">
+            {% for temporalidad in temporalidades %}
+                <option value="{{ temporalidad.value }}">{{ temporalidad.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button id="backtestingButton" class="btn-backtesting">Ejecutar Backtesting</button>
+
+    <!-- Mostrar loading spinner mientras se realiza el backtesting -->
+    <div id="loading" class="loading-spinner" style="display: none;">
+        <p>Realizando el backtesting, por favor espere...</p>
+    </div>
+
+    <!-- Mostrar resultados del backtesting -->
+    <div id="resultadosContainer" class="resultados-container" style="display: none;">
+        <h2>Resultados del Backtesting</h2>
+        <div id="metricas">
+            <!-- Las métricas del backtesting se mostrarán aquí -->
+        </div>
+        <div id="descargarExcelContainer" style="display: none;">
+            <button id="descargarExcelButton" class="btn-descargar">Descargar Resultados en Excel</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        let longProcessInterval;
+
+        $("#backtestingButton").click(function() {
+            // Mostrar mensaje de carga
+            $("#loading").show();
+            $("#resultadosContainer").hide();
+            $("#metricas").empty();
+            $("#descargarExcelContainer").hide();
+
+            // Notificación visual de que el proceso de backtesting ha comenzado
+            Swal.fire({
+                icon: 'info',
+                title: 'Backtesting en Progreso',
+                text: 'El backtesting ha comenzado. Esto puede tomar unos minutos, por favor sea paciente.',
+                timer: 3000,
+                showConfirmButton: false
+            });
+
+            // Obtener el índice y la temporalidad seleccionados
+            let indiceSeleccionado = $("#indice").val();
+            let temporalidadSeleccionada = $("#temporalidad").val();
+
+            // Mensaje cada 60 segundos indicando que el proceso sigue en progreso
+            longProcessInterval = setInterval(function() {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Backtesting en Proceso',
+                    text: 'El backtesting sigue en proceso, por favor espere...',
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            }, 60000); // Mensaje cada 60 segundos
+
+            // Hacer una solicitud POST a la ruta correcta
+            $.post("/backtesting", {indice: indiceSeleccionado, temporalidad: temporalidadSeleccionada}, function(data) {
+                // Ocultar mensaje de carga y detener el intervalo de mensajes
+                clearInterval(longProcessInterval);
+                $("#loading").hide();
+
+                if (data.resultados) {
+                    $("#resultadosContainer").show();
+                    let resultadosHTML = `
+                        <p><strong>Total Ganancia:</strong> ${data.resultados.total_ganancia}</p>
+                        <p><strong>Ratio de Sharpe:</strong> ${data.resultados.ratio_sharpe}</p>
+                        <p><strong>Drawdown Máximo:</strong> ${data.resultados.drawdown_max}</p>
+                        <p><strong>Spread Aplicado:</strong> 0.5</p>
+                        <p><strong>Comisión por Transacción:</strong> 1.0</p>
+                        <p><strong>Máximo Slippage:</strong> 0.2</p>
+                    `;
+                    $("#metricas").append(resultadosHTML);
+
+                    // Mostrar mensaje de éxito
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Backtesting Completado',
+                        text: `Tu backtesting para el índice ${indiceSeleccionado} en la temporalidad de ${temporalidadSeleccionada} minutos ha sido todo un éxito.`,
+                        timer: 5000,
+                        showConfirmButton: false
+                    });
+
+                    // Mostrar botón de descarga del Excel si existe la ruta del archivo
+                    if (data.resultados.excel_path) {
+                        $("#descargarExcelContainer").show();
+                        $("#descargarExcelButton").click(function() {
+                            window.location.href = `/descargar_resultados/${data.resultados.excel_path}`;
+                        });
+                    }
+                } else if (data.mensaje) {
+                    $("#resultadosContainer").show();
+                    $("#metricas").html(`<p>${data.mensaje}</p>`);
+                } else if (data.error) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.error
+                    });
+                }
+            }).fail(function() {
+                // Manejar errores en la solicitud
+                clearInterval(longProcessInterval);
+                $("#loading").hide();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'No se pudo ejecutar el backtesting. Por favor, intenta nuevamente.'
+                });
+            });
+        });
+    });
+</script>
+{% endblock %}

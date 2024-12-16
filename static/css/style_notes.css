@@ -1,0 +1,124 @@
+/* General styles for fullscreen editing */
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Ocultar el scroll de la página */
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Container for the full screen editor */
+#note-editor-fullscreen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background-color: #ffffff;
+}
+
+/* Toolbar container */
+.toolbar-container {
+    padding: 5px 10px;
+    background-color: #f1f1f1; /* Gris claro como en Microsoft Word */
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 1001;
+}
+
+/* Toolbar styling to keep it fixed at the top */
+.note-toolbar {
+    background-color: #f1f1f1; /* Gris claro como en Microsoft Word */
+    padding: 5px;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: nowrap;
+    overflow-x: auto; /* Scroll horizontal si es necesario */
+}
+
+/* Adjust toolbar button styling */
+.note-btn {
+    padding: 4px 6px;
+    border-radius: 3px;
+    margin: 0 3px;
+    background: #ffffff;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.note-btn:hover {
+    background-color: #e0e0e0;
+}
+
+/* Compact toolbar groups */
+.note-toolbar .note-btn-group {
+    margin-right: 5px;
+    display: flex;
+    align-items: center;
+}
+
+/* Fullscreen editor content */
+.note-editor {
+    flex-grow: 1;
+    padding: 20px;
+    background-color: #ffffff;
+    overflow-y: auto;
+    margin-top: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Save button styling */
+.button-container {
+    text-align: center;
+    margin: 10px 0;
+}
+
+.save-button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: #ffffff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.save-button:hover {
+    background-color: #0056b3;
+}
+
+/* Styling for dropdown menus */
+.note-dropdown-menu {
+    border-radius: 5px;
+    background-color: #ffffff;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.15);
+    padding: 5px;
+}
+
+/* Placeholder styling */
+.note-placeholder {
+    color: #888;
+    font-style: italic;
+}
+
+/* Toolbar responsiveness */
+@media (max-width: 768px) {
+    .note-toolbar {
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+
+    .save-button {
+        width: 100%;
+    }
+}

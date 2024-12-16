@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style_notebooks.css') }}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Mis Cuadernos</h1>
+    <div class="notebooks">
+        <form id="create-notebook-form" method="POST" action="{{ url_for('personal_notebooks') }}">
+            <input type="text" name="notebook_name" placeholder="Nombre del Cuaderno" required>
+            <input type="hidden" name="action" value="create_notebook">
+            <button type="submit">Crear Cuaderno</button>
+        </form>
+        <div class="notebook-list">
+            {% for notebook in notebooks %}
+            <div class="notebook">
+                <h2>{{ notebook['name'] }}</h2>
+                <button class="enter-notebook" data-notebook-id="{{ notebook['id'] }}">Entrar</button>
+                <button class="delete-notebook" data-notebook-id="{{ notebook['id'] }}">Eliminar Cuaderno</button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    $(document).ready(function() {
+        // Crear cuaderno
+        $('#create-notebook-form').submit(function(e) {
+            e.preventDefault();
+            $.post($(this).attr('action'), $(this).serialize())
+                .done(function(response) {
+                    Swal.fire('Creado', response.message, 'success').then(() => location.reload());
+                }).fail(function() {
+                    Swal.fire('Error', 'Error al crear el cuaderno.', 'error');
+                });
+        });
+
+        // Eliminar cuaderno
+        $('.delete-notebook').click(function() {
+            let notebookId = $(this).data('notebook-id');
+            Swal.fire({
+                title: '¿Estás seguro?',
+                text: "Esta acción eliminará el cuaderno y todas sus notas.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.post("{{ url_for('personal_notebooks') }}", {
+                        action: 'delete_notebook',
+                        personal_notebook_id: notebookId
+                    }).done(function(response) {
+                        Swal.fire('Eliminado', response.message, 'success').then(() => location.reload());
+                    }).fail(function() {
+                        Swal.fire('Error', 'Error al eliminar el cuaderno.', 'error');
+                    });
+                }
+            });
+        });
+
+        // Entrar al cuaderno
+        $('.enter-notebook').click(function() {
+            let notebookId = $(this).data('notebook-id');
+            window.location.href = `/edit_notebook/${notebookId}`;
+        });
+    });
+</script>
+{% endblock %}

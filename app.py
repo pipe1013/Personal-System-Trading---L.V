@@ -360,6 +360,7 @@ def cargar_datos_estadisticas():
     
     return jsonify(data)
 
+# Historial de cuadernos y trades
 @app.route('/historial')
 def historial():
     connection = get_db_connection()
@@ -371,8 +372,6 @@ def historial():
     connection.close()
 
     return render_template('historial.html', notebooks=notebooks)
-
-from flask import send_from_directory
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -422,6 +421,7 @@ def cargar_historial():
         # Generar la URL manualmente
         image_url = f"/static/uploads/{trade['entry_image_path']}" if trade["entry_image_path"] else None
         trade_list.append({
+            "trade_id": trade["id"],
             "notebook_name": trade["notebook_name"],
             "asset": trade["asset"],
             "lot_size": trade["lot_size"],
@@ -439,6 +439,18 @@ def cargar_historial():
     connection.close()
 
     return jsonify({"trades": trade_list})
+
+@app.route('/eliminar_trade', methods=['POST'])
+def eliminar_trade():
+    trade_id = request.form.get('trade_id')
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM trades WHERE id = ? AND user_id = ?", (trade_id, session['user_id']))
+    connection.commit()
+    connection.close()
+    return jsonify({"success": "El trade ha sido eliminado con éxito."})
+
+
 
 from flask import send_file
 import pandas as pd
@@ -1027,13 +1039,14 @@ def gamificacion():
 
 
 
-from flask import Flask, render_template, jsonify, request
-import json
-import websocket
-import pandas as pd
-import datetime
-
-
+from flask import Flask, render_template, jsonify, request, send_file
+from strategies.combined import check_combined_strategies
+from utils.data_fetcher import obtener_datos_indice_vivo
+from utils.indicator_calculator import calcular_indicadores
+from utils.backtesting import ejecutar_backtesting
+from models.random_forest import entrenar_modelo_rf
+from strategies.scalping_hybrid import estrategia_scalping_hybrid
+import os
 
 indices_sinteticos = {
     "1": "BOOM1000",
@@ -1044,72 +1057,49 @@ indices_sinteticos = {
     "6": "CRASH300N",
 }
 
-# Rutas para el módulo de estrategias
+temporalidades = [
+    {"value": 1, "label": "1 minuto"},
+    {"value": 5, "label": "5 minutos"},
+    {"value": 15, "label": "15 minutos"},
+    {"value": 30, "label": "30 minutos"},
+]
+
 @app.route('/estrategias', methods=['GET'])
 def estrategias():
-    temporalidades = [
-        {"value": 1, "label": "1 minuto"},
-        {"value": 5, "label": "5 minutos"},
-        {"value": 15, "label": "15 minutos"},
-        {"value": 30, "label": "30 minutos"},
-    ]
     return render_template('estrategias.html', indices_sinteticos=indices_sinteticos, temporalidades=temporalidades)
 
 @app.route('/ejecutar_estrategias', methods=['POST'])
 def ejecutar_estrategias():
     try:
         activo_seleccionado = request.form.get("indice")
-        temporalidad = int(request.form.get("temporalidad"))
+        temporalidad = request.form.get("temporalidad")
         if not activo_seleccionado or not temporalidad:
             return jsonify({"error": "No se seleccionó un índice o una temporalidad"}), 400
 
+        temporalidad = int(temporalidad)
         activo = indices_sinteticos.get(activo_seleccionado)
         if not activo:
             return jsonify({"error": "Índice no válido"}), 400
 
         resultados = []
+        resultado_combinado = check_combined_strategies(activo, temporalidad)
 
-        # Ejecutar Cruce de Medias Móviles
-        resultado_ma = check_moving_average_strategy(activo, temporalidad)
-        if resultado_ma:
-            resultados.append(resultado_ma)
+        if resultado_combinado:
+            resultados.append(resultado_combinado)
         else:
-            resultados.append({"strategy_name": "Cruce de Medias Móviles", "asset": activo, "status": "No se encontró oportunidad"})
+            resultados.append({
+                "strategy_name": "Estrategia Combinada",
+                "asset": activo,
+                "status": "No se encontró oportunidad",
+                "win_rate": 10  # Probabilidad por defecto si no se encuentra oportunidad
+            })
 
-        # Ejecutar Estrategia RSI
-        resultado_rsi = check_rsi_strategy(activo, temporalidad)
-        if resultado_rsi:
-            resultados.append(resultado_rsi)
-        else:
-            resultados.append({"strategy_name": "Análisis RSI", "asset": activo, "status": "No se encontró oportunidad"})
-
-        # Ejecutar Estrategia MACD
-        resultado_macd = check_macd_strategy(activo, temporalidad)
-        if resultado_macd:
-            resultados.append(resultado_macd)
-        else:
-            resultados.append({"strategy_name": "Cruce MACD", "asset": activo, "status": "No se encontró oportunidad"})
-
-        # Ejecutar Estrategia Bollinger Bands
-        resultado_bollinger = check_bollinger_bands_strategy(activo, temporalidad)
-        if resultado_bollinger:
-            resultados.append(resultado_bollinger)
-        else:
-            resultados.append({"strategy_name": "Bollinger Bands", "asset": activo, "status": "No se encontró oportunidad"})
-
-        # Ejecutar Estrategia de Soporte y Resistencia
-        resultado_sr = check_support_resistance_breakout_strategy(activo, temporalidad)
-        if resultado_sr:
-            resultados.append(resultado_sr)
-        else:
-            resultados.append({"strategy_name": "Ruptura de Resistencia", "asset": activo, "status": "No se encontró oportunidad"})
-
-        # Guardar los resultados en una variable global para obtenerlos luego
         app.config['ULTIMAS_OPORTUNIDADES'] = resultados
 
         return jsonify({"message": "Las estrategias se están ejecutando. Verifica los resultados en unos segundos."})
 
     except Exception as e:
+        print(f"Error en ejecutar_estrategias: {str(e)}")
         return jsonify({"error": f"Hubo un error al ejecutar las estrategias: {str(e)}"}), 500
 
 @app.route('/resultado_estrategias', methods=['GET'])
@@ -1117,170 +1107,270 @@ def resultado_estrategias():
     resultados = app.config.get('ULTIMAS_OPORTUNIDADES', [])
     return jsonify({"resultados": resultados})
 
-def obtener_datos_indice_vivo(symbol, granularity):
+@app.route('/backtesting', methods=['GET', 'POST'])
+def backtesting():
+    if request.method == 'GET':
+        return render_template('backtesting.html', indices_sinteticos=indices_sinteticos, temporalidades=temporalidades)
+
+    if request.method == 'POST':
+        try:
+            activo_seleccionado = request.form.get("indice")
+            temporalidad = request.form.get("temporalidad")
+            if not activo_seleccionado or not temporalidad:
+                return jsonify({"error": "No se seleccionó un índice o una temporalidad"}), 400
+
+            temporalidad = int(temporalidad)
+            activo = indices_sinteticos.get(activo_seleccionado)
+            if not activo:
+                return jsonify({"error": "Índice no válido"}), 400
+
+            df = obtener_datos_indice_vivo(activo, temporalidad)
+            if df.empty or len(df) < 20:
+                return jsonify({"mensaje": f"No hay datos suficientes para analizar el activo {activo} con la temporalidad de {temporalidad} minutos."}), 400
+
+            calcular_indicadores(df)
+            return ejecutar_backtesting(activo, temporalidad, df)
+
+        except Exception as e:
+            print(f"[ERROR] Error durante el backtesting: {str(e)}")
+            return jsonify({"error": f"Hubo un error al ejecutar el backtesting: {str(e)}"}), 500
+
+from flask import Flask, request, jsonify
+from strategies.scalping_hybrid import estrategia_scalping_hybrid
+import datetime
+
+
+# Definición del endpoint para ejecutar la estrategia
+@app.route('/ejecutar_estrategia_scalping_hybrid', methods=['POST'])
+def ejecutar_estrategia_scalping_hybrid():
     try:
-        # Obtener la fecha de un mes atrás
-        fecha_mes_atras = int((datetime.datetime.now() - datetime.timedelta(days=30)).timestamp())
+        # Obtener los datos del formulario
+        activo_seleccionado = request.form.get("indice")
+        temporalidad = request.form.get("temporalidad")
 
-        # Conexión WebSocket para obtener datos históricos
-        ws = websocket.create_connection("wss://ws.binaryws.com/websockets/v3?app_id=64422")
-        request_data = {
-            "ticks_history": symbol,
-            "adjust_start_time": 1,
-            "count": 100,  # Cantidad de datos para analizar
-            "end": "latest",
-            "start": fecha_mes_atras,
-            "style": "candles",
-            "granularity": granularity * 60  # Temporalidad en segundos (M1 = 60, M5 = 300, etc.)
-        }
-        ws.send(json.dumps(request_data))
-        response = ws.recv()
-        data = json.loads(response)
-        ws.close()
+        # Validar que se hayan ingresado un índice y una temporalidad
+        if not activo_seleccionado or not temporalidad:
+            return jsonify({"error": "Datos incompletos. Por favor ingrese todos los datos requeridos."}), 400
 
-        if 'candles' in data:
-            return pd.DataFrame(data['candles'])
+        temporalidad = int(temporalidad)
+        activo = indices_sinteticos.get(activo_seleccionado)
+
+        # Validar que el índice seleccionado sea válido
+        if not activo:
+            return jsonify({"error": "Índice no válido"}), 400
+
+        # Ejecutar la estrategia combinada de scalping e híbrido
+        resultado = estrategia_scalping_hybrid(activo, temporalidad)
+
+        if resultado:
+            # Guardar los resultados en una variable global para obtenerlos luego
+            app.config['ULTIMAS_OPORTUNIDADES'] = [resultado]
         else:
-            return pd.DataFrame()
+            app.config['ULTIMAS_OPORTUNIDADES'] = [{
+                "strategy_name": "Scalping-Hybrid",
+                "asset": activo,
+                "entry_point": "Valor predeterminado utilizado",
+                "stop_loss": "Valor predeterminado utilizado",
+                "take_profit": "Valor predeterminado utilizado",
+                "win_rate": "0%",
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "message": "No se encontró oportunidad, probabilidad de éxito es del 0%"
+            }]
+
+        return jsonify({"message": "La estrategia combinada se está ejecutando. Verifica los resultados en unos segundos."})
+
     except Exception as e:
-        print(f"Error al obtener datos del índice: {str(e)}")
-        return pd.DataFrame()
+        print(f"Error en ejecutar_estrategia_scalping_hybrid: {str(e)}")
+        return jsonify({"error": f"Hubo un error al ejecutar la estrategia: {str(e)}"}), 500
 
-# Estrategia de Cruce de Medias Móviles
-def check_moving_average_strategy(asset, temporalidad):
-    df = obtener_datos_indice_vivo(asset, temporalidad)  # Utilizar la temporalidad seleccionada
-    if df.empty:
-        return None
 
-    # Calcular medias móviles
-    df['MA_5'] = df['close'].rolling(window=5).mean()
-    df['MA_20'] = df['close'].rolling(window=20).mean()
+from flask import Flask, render_template, jsonify, request, redirect, url_for
+import sqlite3
+from config import DB_PATH
 
-    print(f"[{asset}] MA_5: {df['MA_5'].iloc[-2]}, MA_20: {df['MA_20'].iloc[-2]}")  # Imprimir valores para verificar
+# Definición de meses y hábitos
+meses = {
+    "1": "Enero", "2": "Febrero", "3": "Marzo", "4": "Abril", "5": "Mayo", "6": "Junio",
+    "7": "Julio", "8": "Agosto", "9": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
+}
+habitos = [
+    "Ir al GYM", "Meditar", "NDP", "Vida social", "Estado de ánimo",
+    "Relación familiar", "Lectura", "Inglés", "Trabajo", "Trading"
+]
 
-    # Condición de cruce
-    if df['MA_5'].iloc[-2] < df['MA_20'].iloc[-2] and df['MA_5'].iloc[-1] > df['MA_20'].iloc[-1]:
-        return {
-            "strategy_name": "Cruce de Medias Móviles",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['high'].max(),
-            "win_rate": 85,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
 
-# Estrategia de Índice de Fuerza Relativa (RSI)
-def check_rsi_strategy(asset, temporalidad):
-    df = obtener_datos_indice_vivo(asset, temporalidad)
-    if df.empty:
-        return None
+@app.route('/control_habitos', methods=['GET'])
+def control_habitos():
+    return render_template('control_habitos.html', meses=meses, habitos=habitos)
 
-    delta = df['close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df['RSI'] = 100 - (100 / (1 + rs))
+@app.route('/habitos/<mes>', methods=['GET'])
+def obtener_habitos(mes):
+    try:
+        user_id = 1
+        connection = sqlite3.connect(DB_PATH)
+        cursor = connection.cursor()
 
-    if df['RSI'].iloc[-1] < 30:
-        return {
-            "strategy_name": "Análisis RSI - Sobrevendido",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['high'].max(),
-            "win_rate": 75,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    elif df['RSI'].iloc[-1] > 70:
-        return {
-            "strategy_name": "Análisis RSI - Sobrecomprado",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['high'].max(),
-            "win_rate": 70,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
+        cursor.execute('''
+            SELECT habito, dia, cumplido FROM habitos WHERE user_id = ? AND mes = ?
+        ''', (user_id, mes))
+        registros = cursor.fetchall()
 
-# Estrategia de MACD
-def check_macd_strategy(asset, temporalidad):
-    df = obtener_datos_indice_vivo(asset, temporalidad)
-    if df.empty:
-        return None
+        habitos_data = {}
+        for habito, dia, cumplido in registros:
+            if habito not in habitos_data:
+                habitos_data[habito] = []
+            habitos_data[habito].append({"dia": dia, "cumplido": cumplido})
 
-    df['EMA_12'] = df['close'].ewm(span=12, adjust=False).mean()
-    df['EMA_26'] = df['close'].ewm(span=26, adjust=False).mean()
-    df['MACD'] = df['EMA_12'] - df['EMA_26']
-    df['Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+        habitos_list = [{"nombre": habito, "dias": dias} for habito, dias in habitos_data.items()]
 
-    if df['MACD'].iloc[-2] < df['Signal'].iloc[-2] and df['MACD'].iloc[-1] > df['Signal'].iloc[-1]:
-        return {
-            "strategy_name": "Cruce MACD",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['high'].max(),
-            "win_rate": 80,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
+        return jsonify({"habitos": habitos_list})
+    except Exception as e:
+        print(f"Error al obtener hábitos: {str(e)}")
+        return jsonify({"error": "Error al obtener hábitos"}), 500
+    finally:
+        connection.close()
 
-# Estrategia de Bollinger Bands
-def check_bollinger_bands_strategy(asset, temporalidad):
-    df = obtener_datos_indice_vivo(asset, temporalidad)
-    if df.empty:
-        return None
+@app.route('/habitos/<mes>/actualizar', methods=['POST'])
+def actualizar_habito(mes):
+    try:
+        user_id = 1
+        data = request.get_json()
+        habito = data.get("habito")
+        dia = data.get("dia")
 
-    df['SMA_20'] = df['close'].rolling(window=20).mean()
-    df['stddev'] = df['close'].rolling(window=20).std()
-    df['Upper'] = df['SMA_20'] + (df['stddev'] * 2)
-    df['Lower'] = df['SMA_20'] - (df['stddev'] * 2)
+        connection = sqlite3.connect(DB_PATH)
+        cursor = connection.cursor()
 
-    if df['close'].iloc[-1] < df['Lower'].iloc[-1]:
-        return {
-            "strategy_name": "Bollinger Bands - Ruptura Inferior",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['Upper'].iloc[-1],
-            "win_rate": 70,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
+        cursor.execute('''
+            SELECT id FROM habitos WHERE user_id = ? AND mes = ? AND habito = ? AND dia = ?
+        ''', (user_id, mes, habito, dia))
+        registro = cursor.fetchone()
 
-# Estrategia de Soporte y Resistencia
-def check_support_resistance_breakout_strategy(asset, temporalidad):
-    df = obtener_datos_indice_vivo(asset, temporalidad)
-    if df.empty:
-        return None
+        if registro:
+            cursor.execute('''
+                UPDATE habitos SET cumplido = NOT cumplido WHERE id = ?
+            ''', (registro[0],))
+        else:
+            cursor.execute('''
+                INSERT INTO habitos (user_id, mes, habito, dia, cumplido) VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, mes, habito, dia, True))
 
-    soporte = df['low'].rolling(window=20).min().iloc[-1]
-    resistencia = df['high'].rolling(window=20).max().iloc[-1]
+        connection.commit()
+        return jsonify({"message": "Hábito actualizado correctamente"})
+    except Exception as e:
+        print(f"Error al actualizar hábito: {str(e)}")
+        return jsonify({"error": "Error al actualizar hábito"}), 500
+    finally:
+        connection.close()
 
-    if df['close'].iloc[-1] > resistencia:
-        return {
-            "strategy_name": "Ruptura de Resistencia",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": soporte,
-            "take_profit": resistencia + (resistencia - soporte),
-            "win_rate": 65,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
+@app.route('/estadisticas_habitos/<mes>', methods=['GET'])
+def estadisticas_habitos(mes):
+    try:
+        user_id = 1
+        connection = sqlite3.connect(DB_PATH)
+        cursor = connection.cursor()
+
+        cursor.execute('''
+            SELECT habito, COUNT(*) as cumplidos FROM habitos WHERE user_id = ? AND mes = ? AND cumplido = 1 GROUP BY habito
+        ''', (user_id, mes))
+        registros = cursor.fetchall()
+
+        habitos_data = [{"nombre": registro[0], "cumplimiento": registro[1]} for registro in registros]
+
+        return render_template("estadisticas_habitos.html", habitos=habitos_data, mes=meses.get(mes, ""))
+    except Exception as e:
+        print(f"Error al obtener estadísticas: {str(e)}")
+        return jsonify({"error": "Error al obtener estadísticas"}), 500
+    finally:
+        connection.close()
+
+
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+import sqlite3
+
+
+# Ruta para manejar la vista del módulo de cuadernos
+@app.route('/personal_notebooks', methods=['GET', 'POST'])
+def personal_notebooks():
+    try:
+        user_id = session.get('user_id', 1)  # Simulación de un usuario autenticado
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        if request.method == 'POST':
+            action = request.form['action']
+
+            # Crear un cuaderno
+            if action == 'create_notebook':
+                notebook_name = request.form['notebook_name']
+                cursor.execute('''
+                    INSERT INTO personal_notebooks (user_id, name, content)
+                    VALUES (?, ?, ?)
+                ''', (user_id, notebook_name, ""))
+                connection.commit()
+                return jsonify({'message': 'Cuaderno creado exitosamente.'})
+
+            # Eliminar un cuaderno
+            elif action == 'delete_notebook':
+                personal_notebook_id = request.form['personal_notebook_id']
+                cursor.execute('''
+                    DELETE FROM personal_notebooks WHERE id = ? AND user_id = ?
+                ''', (personal_notebook_id, user_id))
+                connection.commit()
+                return jsonify({'message': 'Cuaderno eliminado exitosamente.'})
+
+        # Obtener todos los cuadernos del usuario
+        cursor.execute('''
+            SELECT * FROM personal_notebooks WHERE user_id = ?
+        ''', (user_id,))
+        notebooks = cursor.fetchall()
+
+        connection.close()
+        return render_template('notebooks.html', notebooks=notebooks)
+
+    except Exception as e:
+        print(f"Error en el módulo de cuadernos: {str(e)}")
+        return jsonify({'error': 'Hubo un error en el módulo de cuadernos.'}), 500
+
+# Conexión a la base de datos
+def get_db_connection():
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+# Ruta para trabajar en una página específica (nota)
+@app.route('/edit_notebook/<int:notebook_id>', methods=['GET', 'POST'])
+def edit_notebook(notebook_id):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        if request.method == 'POST':
+            content = request.form['content']
+            cursor.execute('''
+                UPDATE personal_notebooks
+                SET content = ?
+                WHERE id = ?
+            ''', (content, notebook_id))
+            connection.commit()
+            connection.close()
+            return jsonify({'message': 'Notas guardadas exitosamente.'})
+
+        # Obtener el cuaderno específico
+        cursor.execute('''
+            SELECT * FROM personal_notebooks WHERE id = ?
+        ''', (notebook_id,))
+        notebook = cursor.fetchone()
+
+        if notebook is None:
+            return jsonify({'error': 'Cuaderno no encontrado.'}), 404
+
+        connection.close()
+        return render_template('edit_notebook.html', notebook=notebook)
+
+    except Exception as e:
+        print(f"Error al editar el cuaderno: {str(e)}")
+        return jsonify({'error': 'Hubo un error al editar el cuaderno.'}), 500
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000, debug=True)
-
-
-
-
-
-
-
-
-
-

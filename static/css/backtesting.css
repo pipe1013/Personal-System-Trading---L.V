@@ -1,0 +1,96 @@
+/* backtesting.css */
+
+.backtesting-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.backtesting-container h1 {
+    font-size: 2em;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.seleccionar-indice, .seleccionar-temporalidad {
+    margin-bottom: 15px;
+}
+
+.seleccionar-indice label, .seleccionar-temporalidad label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+select {
+    width: 100%;
+    padding: 10px;
+    font-size: 1em;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.btn-backtesting {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 1.2em;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.btn-backtesting:hover {
+    background-color: #0056b3;
+}
+
+.loading-spinner {
+    text-align: center;
+    font-size: 1.1em;
+    color: #555;
+}
+
+.resultados-container {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #e9ecef;
+    border-radius: 8px;
+}
+
+.resultados-container h2 {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+}
+
+#metricas p {
+    font-size: 1.1em;
+    margin: 10px 0;
+}
+/* Estilo para el botón de Descargar Excel */
+.btn-descargar {
+    background-color: #4CAF50; /* Verde */
+    color: white;
+    padding: 10px 20px;
+    margin-top: 20px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 16px;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+.btn-descargar:hover {
+    background-color: #45a049; /* Verde un poco más oscuro para el hover */
+    transform: scale(1.05); /* Efecto de aumentar ligeramente el tamaño al pasar el cursor */
+}
+
+.btn-descargar:active {
+    background-color: #3e8e41; /* Más oscuro cuando se presiona el botón */
+    transform: scale(0.95); /* Efecto de reducción al hacer clic */
+}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/summernote/dist/summernote-bs4.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style_notes.css') }}">
+{% endblock %}
+
+{% block content %}
+<div id="note-editor-fullscreen">
+    <div class="toolbar-container">
+        <button id="toggle-toolbar" class="btn btn-secondary">Esconder Barra de Herramientas</button>
+    </div>
+    <form id="edit-notebook-form" method="POST" action="{{ url_for('edit_notebook', notebook_id=notebook['id']) }}">
+        <textarea id="content" name="content">{{ notebook['content'] }}</textarea>
+    </form>
+    <div class="button-container">
+        <button type="submit" class="btn btn-primary save-button">Guardar Notas</button>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote/dist/summernote-bs4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    $(document).ready(function() {
+        $('#content').summernote({
+            height: $(window).height() - 150, // Ajuste dinámico del tamaño según la pantalla
+            width: '100%',
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'strikethrough', 'superscript', 'subscript', 'clear']],
+                ['fontname', ['fontname']],
+                ['fontsize', ['fontsize']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph', 'height']],
+                ['insert', ['link', 'picture', 'video', 'table']],
+                ['view', ['fullscreen', 'codeview']],
+                ['misc', ['undo', 'redo']]
+            ],
+            fontNames: [
+                'Arial', 'Arial Black', 'Comic Sans MS', 'Courier New', 
+                'Helvetica', 'Impact', 'Tahoma', 'Times New Roman', 'Verdana', 'Georgia', 'Palatino Linotype'
+            ],
+            placeholder: 'Escribe tus notas aquí...',
+            callbacks: {
+                onImageUpload: function(files) {
+                    for (let i = 0; i < files.length; i++) {
+                        const reader = new FileReader();
+                        reader.onloadend = function() {
+                            $('#content').summernote('insertImage', reader.result);
+                        }
+                        reader.readAsDataURL(files[i]);
+                    }
+                },
+                onMediaDelete: function(target) {
+                    target.remove(); // Remover la imagen o video del contenido
+                }
+            }
+        });
+
+        // Botón para esconder/mostrar la barra de herramientas
+        $('#toggle-toolbar').click(function() {
+            $('.note-toolbar').toggle();
+            const isToolbarVisible = $('.note-toolbar').is(':visible');
+            $(this).text(isToolbarVisible ? 'Esconder Barra de Herramientas' : 'Mostrar Barra de Herramientas');
+            $('#content').summernote('height', isToolbarVisible ? $(window).height() - 150 : $(window).height() - 50);
+        });
+
+        $('.save-button').click(function(e) {
+            e.preventDefault();
+            $.post($('#edit-notebook-form').attr('action'), $('#edit-notebook-form').serialize())
+                .done(function(response) {
+                    Swal.fire('Guardado', response.message, 'success');
+                }).fail(function() {
+                    Swal.fire('Error', 'Error al guardar las notas.', 'error');
+                });
+        });
+    });
+</script>
+{% endblock %}

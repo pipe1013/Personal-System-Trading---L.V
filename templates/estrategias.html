@@ -7,25 +7,30 @@
 {% block content %}
 <div class="estrategias-container">
     <h1>Estrategias de Trading</h1>
-    <div class="seleccionar-indice">
-        <label for="indice">Selecciona el índice a analizar:</label>
-        <select id="indice" name="indice">
-            {% for key, value in indices_sinteticos.items() %}
-                <option value="{{ key }}">{{ value }}</option>
-            {% endfor %}
-        </select>
+    <div class="botones-estrategias">
+        <button id="estrategiaLargoPlazoButton" class="btn-estrategia">Estrategia a Largo Plazo</button>
+        <button id="estrategiaScalpingButton" class="btn-estrategia">Estrategia Scalping</button>
     </div>
-    <div class="seleccionar-temporalidad">
-        <label for="temporalidad">Selecciona la temporalidad:</label>
-        <select id="temporalidad" name="temporalidad">
-            <option value="1">1 Minuto</option>
-            <option value="5">5 Minutos</option>
-            <option value="15">15 Minutos</option>
-            <option value="30">30 Minutos</option>
-            <option value="60">1 Hora</option>
-        </select>
+
+    <div id="seleccionarParametros" class="seleccionar-parametros" style="display: none;">
+        <div class="seleccionar-indice">
+            <label for="indice">Selecciona el índice a analizar:</label>
+            <select id="indice" name="indice">
+                {% for key, value in indices_sinteticos.items() %}
+                    <option value="{{ key }}">{{ value }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="seleccionar-temporalidad">
+            <label for="temporalidad">Selecciona la temporalidad:</label>
+            <select id="temporalidad" name="temporalidad">
+                {% for temporalidad in temporalidades %}
+                    <option value="{{ temporalidad.value }}">{{ temporalidad.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button id="ejecutarButton" class="btn-ejecutar">Ejecutar Estrategia</button>
     </div>
-    <button id="ejecutarButton" class="btn-ejecutar">Ejecutar Estrategias</button>
 
     <!-- Mostrar loading spinner mientras se realiza el análisis -->
     <div id="loading" class="loading-spinner" style="display: none;">
@@ -41,17 +46,40 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     $(document).ready(function() {
+        let endpoint = "";  // Variable para guardar el endpoint correcto
+
+        // Mostrar el formulario de selección de parámetros según la estrategia seleccionada
+        $("#estrategiaLargoPlazoButton").click(function() {
+            $("#seleccionarParametros").show();
+            endpoint = "/ejecutar_estrategias";  // Endpoint para la estrategia a largo plazo
+        });
+
+        $("#estrategiaScalpingButton").click(function() {
+            $("#seleccionarParametros").show();
+            endpoint = "/ejecutar_estrategia_scalping_hybrid";  // Endpoint para la estrategia scalping
+        });
+
+        // Ejecutar la estrategia seleccionada
         $("#ejecutarButton").click(function() {
+            if (endpoint === "") {
+                alert("Por favor selecciona una estrategia primero.");
+                return;
+            }
+
             // Mostrar mensaje de carga
             $("#loading").show();
             $("#oportunidadesContainer").hide();
             $("#oportunidadesContainer").empty();
 
-            // Obtener el índice y la temporalidad seleccionados
+            // Obtener los datos seleccionados
             let indiceSeleccionado = $("#indice").val();
             let temporalidadSeleccionada = $("#temporalidad").val();
 
-            $.post("/ejecutar_estrategias", {indice: indiceSeleccionado, temporalidad: temporalidadSeleccionada}, function(data) {
+            // Enviar solicitud POST al endpoint correspondiente
+            $.post(endpoint, {
+                indice: indiceSeleccionado,
+                temporalidad: temporalidadSeleccionada
+            }, function(data) {
                 // Dar un tiempo de espera simulado para la ejecución del análisis
                 setTimeout(function() {
                     $.get("/resultado_estrategias", function(response) {
@@ -59,30 +87,36 @@
                         $("#loading").hide();
                         $("#oportunidadesContainer").show();
 
-                        // Si hay oportunidades, mostrarlas. Si no, mostrar mensaje de "No se encontraron oportunidades"
-                        if (response.resultados.length > 0) {
+                        // Mostrar resultados
+                        if (response.resultados && response.resultados.length > 0) {
                             response.resultados.forEach(function(oportunidad) {
-                                if (oportunidad.status && oportunidad.status === "No se encontró oportunidad") {
-                                    $("#oportunidadesContainer").append(`<div class="oportunidad"><h2>${oportunidad.strategy_name}</h2><p>No se encontró oportunidad.</p></div>`);
-                                } else {
-                                    $("#oportunidadesContainer").append(`
-                                        <div class="oportunidad">
-                                            <h2>${oportunidad.strategy_name}</h2>
-                                            <p><strong>Activo:</strong> ${oportunidad.asset}</p>
-                                            <p><strong>Punto de Entrada:</strong> ${oportunidad.entry_point}</p>
-                                            <p><strong>Stop Loss:</strong> ${oportunidad.stop_loss}</p>
-                                            <p><strong>Take Profit:</strong> ${oportunidad.take_profit}</p>
-                                            <p><strong>Win Rate:</strong> ${oportunidad.win_rate}%</p>
-                                            <p><strong>Fecha:</strong> ${oportunidad.timestamp}</p>
-                                        </div>
-                                    `);
-                                }
+                                let oportunidadHTML = `
+                                    <div class="oportunidad">
+                                        <h2>${oportunidad.strategy_name}</h2>
+                                        <p><strong>Activo:</strong> ${oportunidad.asset}</p>
+                                        <p><strong>Punto de Entrada:</strong> ${oportunidad.entry_point || "Valor predeterminado utilizado"}</p>
+                                        <p><strong>Stop Loss:</strong> ${oportunidad.stop_loss || "Valor predeterminado utilizado"}</p>
+                                        <p><strong>Take Profit:</strong> ${oportunidad.take_profit || "Valor predeterminado utilizado"}</p>
+                                        <p><strong>Win Rate:</strong> ${oportunidad.win_rate}%</p>
+                                        <p><strong>Fecha:</strong> ${oportunidad.timestamp}</p>
+                                        <p>${oportunidad.message}</p>
+                                    </div>
+                                `;
+                                $("#oportunidadesContainer").append(oportunidadHTML);
                             });
                         } else {
                             $("#oportunidadesContainer").html("<p>No se encontraron oportunidades.</p>");
                         }
+                    }).fail(function(error) {
+                        console.error("Error al obtener los resultados:", error);
+                        $("#loading").hide();
+                        $("#oportunidadesContainer").html("<p>Error al obtener los resultados. Intente nuevamente.</p>");
                     });
                 }, 5000);
+            }).fail(function(error) {
+                console.error("Error en la ejecución de la estrategia:", error);
+                $("#loading").hide();
+                $("#oportunidadesContainer").html("<p>Error al ejecutar la estrategia. Intente nuevamente.</p>");
             });
         });
     });
